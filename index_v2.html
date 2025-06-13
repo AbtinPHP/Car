@@ -1,0 +1,300 @@
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>محاسبه‌گر تسهیلات خودرو</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+        body {
+            font-family: 'Inter', sans-serif;
+            /* Enhanced background with gradient */
+            background: linear-gradient(135deg, #e0f2fe 0%, #a7d9ff 100%); /* Light blue gradient */
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+            padding: 1rem; /* Consistent padding */
+        }
+        /* Custom scrollbar for better aesthetics */
+        ::-webkit-scrollbar {
+            width: 8px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #f1f1f1;
+            border-radius: 10px;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #888;
+            border-radius: 10px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #555;
+        }
+    </style>
+</head>
+<body class="flex items-center justify-center min-h-screen p-4">
+    <div class="w-full max-w-md bg-white rounded-3xl shadow-2xl p-8 space-y-7 md:max-w-lg lg:max-w-xl transform transition-all duration-300 ease-in-out hover:scale-[1.01]">
+        <h1 class="text-4xl font-extrabold text-center text-gray-900 mb-8 drop-shadow-sm">
+            🚗 محاسبه‌گر تسهیلات خودرو
+        </h1>
+
+        <!-- Car Selection Dropdown -->
+        <div class="relative z-20">
+            <label for="car-select-button" class="block text-gray-800 text-lg font-semibold mb-3">انتخاب خودرو:</label>
+            <button id="car-select-button" class="w-full text-right bg-white border border-gray-300 rounded-xl py-3 px-5 text-gray-800 text-lg hover:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition duration-200 ease-in-out shadow-sm flex items-center justify-between" aria-haspopup="listbox" aria-expanded="false">
+                <span id="selected-car-name" class="flex-grow text-gray-700">در حال بارگذاری خودروها...</span>
+                <span class="text-gray-500 text-2xl ml-2 transform transition-transform duration-200 ease-in-out rotate-0" id="dropdown-arrow">&#9660;</span>
+            </button>
+
+            <div id="car-dropdown-content" class="absolute hidden w-full mt-3 bg-white border border-gray-300 rounded-xl shadow-xl max-h-72 overflow-y-auto z-30">
+                <input type="text" id="car-search-input" class="w-full p-4 border-b-2 border-blue-200 focus:outline-none focus:border-blue-500 rounded-t-xl text-lg transition duration-200 ease-in-out" placeholder="🔍 جستجوی خودرو..." autofocus>
+                <ul id="car-list" class="divide-y divide-gray-100 p-2">
+                    <!-- Car names will be populated here by JavaScript -->
+                </ul>
+            </div>
+        </div>
+
+        <!-- Loan Term Selection -->
+        <div class="relative z-10">
+            <label for="loan-term-select" class="block text-gray-800 text-lg font-semibold mb-3">مدت تسهیلات:</label>
+            <select id="loan-term-select" class="w-full bg-white border border-gray-300 rounded-xl py-3 px-5 text-gray-800 text-lg hover:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition duration-200 ease-in-out shadow-sm">
+                <option value="12">🗓️ 1 سال</option>
+                <option value="24">🗓️ 2 سال</option>
+                <option value="36">🗓️ 3 سال</option>
+                <option value="48">🗓️ 4 سال</option>
+                <option value="60" selected>🗓️ 5 سال</option>
+            </select>
+        </div>
+
+        <!-- Calculate Button -->
+        <button id="calculate-button" class="w-full bg-gradient-to-r from-blue-500 to-blue-700 text-white font-bold py-4 px-6 rounded-xl shadow-lg hover:from-blue-600 hover:to-blue-800 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-opacity-75 transition duration-200 ease-in-out transform hover:-translate-y-1">
+            ✨ محاسبه تسهیلات
+        </button>
+
+        <!-- Loading Indicator for data fetching -->
+        <div id="initial-loading-indicator" class="text-center text-blue-600 font-medium text-lg mt-4">
+            در حال بارگذاری اطلاعات خودروها...
+        </div>
+
+        <!-- Loan Details Display Area -->
+        <div id="results-area" class="bg-blue-50 p-6 rounded-xl shadow-inner text-gray-800 text-base leading-relaxed hidden border border-blue-200">
+            <h2 class="text-2xl font-bold text-gray-800 mb-5 text-center border-b-2 border-blue-300 pb-3">📈 جزئیات تسهیلات (تومان)</h2>
+            <div id="loan-details-content" class="space-y-4">
+                <!-- Loan details will be displayed here -->
+            </div>
+        </div>
+
+        <!-- Error Message -->
+        <div id="error-message" class="hidden text-center text-red-700 font-semibold p-4 bg-red-100 rounded-xl border border-red-300">
+            <!-- Error messages will be displayed here -->
+        </div>
+
+    </div>
+
+    <script>
+        let allLoanDetails = []; // This will hold all data fetched from loan_data.json
+        let availableCarNames = []; // List of unique car names for the dropdown
+
+        let selectedCarName = ''; // Dynamically set after data load
+        const carSelectButton = document.getElementById('car-select-button');
+        const selectedCarNameSpan = document.getElementById('selected-car-name');
+        const carDropdownContent = document.getElementById('car-dropdown-content');
+        const carSearchInput = document.getElementById('car-search-input');
+        const carListUl = document.getElementById('car-list');
+        const loanTermSelect = document.getElementById('loan-term-select');
+        const calculateButton = document.getElementById('calculate-button');
+        const resultsArea = document.getElementById('results-area');
+        const loanDetailsContent = document.getElementById('loan-details-content');
+        const initialLoadingIndicator = document.getElementById('initial-loading-indicator');
+        const errorMessageDiv = document.getElementById('error-message');
+        const dropdownArrow = document.getElementById('dropdown-arrow');
+
+        // Helper function to convert Persian/Arabic numbers to English numbers
+        function convertNumbersToEnglish(str) {
+            return str.replace(/[\u06F0-\u06F9]/g, function (c) {
+                return c.charCodeAt(0) - 0x06F0;
+            }).replace(/[\u0660-\u0669]/g, function (c) {
+                return c.charCodeAt(0) - 0x0660;
+            });
+        }
+
+        // Helper function to format numbers with commas (no currency suffix)
+        // Numbers are assumed to be in Toman already
+        function formatNumberWithPersianCommas(num) {
+            if (num === null || num === undefined) {
+                return 'N/A';
+            }
+            // Round to nearest integer and format with Persian numbers and commas
+            return new Intl.NumberFormat('fa-IR').format(Math.round(num));
+        }
+
+        // Function to populate and filter the car dropdown list
+        function populateCarDropdown(filterText = '') {
+            carListUl.innerHTML = ''; // Clear current list
+            const normalizedFilter = convertNumbersToEnglish(filterText).toLowerCase();
+
+            const filteredCars = availableCarNames.filter(carName => {
+                const normalizedCarName = convertNumbersToEnglish(carName).toLowerCase();
+                return normalizedCarName.includes(normalizedFilter);
+            });
+
+            if (filteredCars.length === 0) {
+                const listItem = document.createElement('li');
+                listItem.className = 'py-3 px-4 text-gray-500 text-center text-base';
+                listItem.textContent = 'خودرویی یافت نشد.';
+                carListUl.appendChild(listItem);
+            } else {
+                filteredCars.forEach(carName => {
+                    const listItem = document.createElement('li');
+                    listItem.className = 'py-3 px-4 cursor-pointer hover:bg-blue-100 transition duration-150 ease-in-out text-base';
+                    listItem.textContent = carName;
+                    listItem.addEventListener('click', () => {
+                        selectedCarName = carName;
+                        selectedCarNameSpan.textContent = selectedCarName;
+                        carDropdownContent.classList.add('hidden'); // Hide dropdown
+                        carSearchInput.value = ''; // Clear search input
+                        errorMessageDiv.classList.add('hidden'); // Hide any previous error
+                        dropdownArrow.classList.remove('rotate-180'); // Reset arrow rotation
+                    });
+                    carListUl.appendChild(listItem);
+                });
+            }
+        }
+
+        // Function to fetch data from loan_data.json
+        async function fetchLoanData() {
+            initialLoadingIndicator.classList.remove('hidden');
+            try {
+                const response = await fetch('loan_data.json');
+                if (!response.ok) {
+                    throw new Error(`خطا در بارگذاری فایل loan_data.json: ${response.statusText}. کد وضعیت: ${response.status}`);
+                }
+                allLoanDetails = await response.json();
+                
+                // Extract unique car names for the dropdown
+                const carNamesSet = new Set();
+                allLoanDetails.forEach(item => carNamesSet.add(item.car_name));
+                availableCarNames = Array.from(carNamesSet).sort(); // Sort alphabetically
+
+                if (availableCarNames.length > 0) {
+                    selectedCarName = availableCarNames[0]; // Set default to the first car
+                    populateCarDropdown(); // Populate dropdown with fetched car names
+                    selectedCarNameSpan.textContent = selectedCarName;
+                } else {
+                    errorMessageDiv.textContent = 'هیچ اطلاعاتی در فایل loan_data.json یافت نشد.';
+                    errorMessageDiv.classList.remove('hidden');
+                }
+            } catch (error) {
+                console.error('Error fetching loan data:', error);
+                errorMessageDiv.textContent = `خطا در بارگذاری اطلاعات: ${error.message}. لطفاً مطمئن شوید فایل 'loan_data.json' در کنار برنامه موجود است و توسط اسکریپت پایتون 'json2processed_data.py' تولید شده است.`;
+                errorMessageDiv.classList.remove('hidden');
+            } finally {
+                initialLoadingIndicator.classList.add('hidden');
+            }
+        }
+
+        // Event Listeners
+        carSelectButton.addEventListener('click', () => {
+            carDropdownContent.classList.toggle('hidden');
+            const isDropdownHidden = carDropdownContent.classList.contains('hidden');
+            carSelectButton.setAttribute('aria-expanded', !isDropdownHidden);
+            if (!isDropdownHidden) {
+                carSearchInput.focus();
+                populateCarDropdown(carSearchInput.value); // Populate with current search value
+                dropdownArrow.classList.add('rotate-180'); // Rotate arrow up
+            } else {
+                dropdownArrow.classList.remove('rotate-180'); // Rotate arrow down
+            }
+        });
+
+        carSearchInput.addEventListener('input', (event) => {
+            populateCarDropdown(event.target.value);
+        });
+
+        // Hide dropdown if clicked outside
+        document.addEventListener('click', (event) => {
+            if (!carSelectButton.contains(event.target) && !carDropdownContent.contains(event.target)) {
+                carDropdownContent.classList.add('hidden');
+                carSelectButton.setAttribute('aria-expanded', 'false');
+                dropdownArrow.classList.remove('rotate-180'); // Reset arrow rotation
+            }
+        });
+
+        calculateButton.addEventListener('click', () => {
+            resultsArea.classList.add('hidden');
+            errorMessageDiv.classList.add('hidden');
+            loanDetailsContent.innerHTML = '';
+
+            const loanTermMonths = parseInt(loanTermSelect.value, 10);
+
+            // Find the data in the loaded allLoanDetails array
+            const loanData = allLoanDetails.find(data => 
+                data.car_name === selectedCarName && data.loan_term_months === loanTermMonths
+            );
+
+            if (loanData) {
+                loanDetailsContent.innerHTML = `
+                    <p class="font-bold text-lg flex items-center">
+                        <span class="ml-2">🚗</span> خودرو: <span class="font-normal mr-auto">${loanData.car_name}</span>
+                    </p>
+                    <p class="font-bold text-lg flex items-center">
+                        <span class="ml-2">🗓️</span> مدت تسهیلات: <span class="font-normal mr-auto">${new Intl.NumberFormat('fa-IR').format(loanData.loan_term_years)} سال (${new Intl.NumberFormat('fa-IR').format(loanData.loan_term_months)} ماه)</span>
+                    </p>
+                    <p class="font-bold text-lg flex items-center">
+                        <span class="ml-2">💰</span> قیمت بازار: <span class="font-normal mr-auto">${formatNumberWithPersianCommas(loanData.market_price)}</span>
+                    </p>
+                    <p class="font-bold text-lg flex items-center">
+                        <span class="ml-2">🏭</span> قیمت کارخانه: <span class="font-normal mr-auto">${formatNumberWithPersianCommas(loanData.factory_price)}</span>
+                    </p>
+                    <p class="font-bold text-lg flex items-center">
+                        <span class="ml-2">💸</span> مبلغ تسهیلات بر مبنای قیمت کارخانه: <span class="font-normal mr-auto">${formatNumberWithPersianCommas(loanData.loan_amount_based_on_factory_price)}</span>
+                    </p>
+                    <p class="font-bold text-lg flex items-center">
+                        <span class="ml-2">🔢</span> تعداد اقساط: <span class="font-normal mr-auto">${new Intl.NumberFormat('fa-IR').format(loanData.number_of_installments)}</span>
+                    </p>
+                    <p class="font-bold text-lg flex items-center">
+                        <span class="ml-2">%</span> نرخ سود سالیانه: <span class="font-normal mr-auto">${new Intl.NumberFormat('fa-IR').format(loanData.annual_interest_rate * 100)}%</span>
+                    </p>
+                    <p class="font-bold text-lg flex items-center">
+                        <span class="ml-2">📈</span> درصد توسعه فروش: <span class="font-normal mr-auto">${new Intl.NumberFormat('fa-IR').format(loanData.sales_development_percentage * 100)}%</span>
+                    </p>
+                    <p class="font-bold text-lg flex items-center">
+                        <span class="ml-2">❤️‍🩹</span> سود دوره تسهیلات: <span class="font-normal mr-auto">${formatNumberWithPersianCommas(loanData.loan_period_interest)}</span>
+                    </p>
+                    <p class="font-bold text-lg flex items-center">
+                        <span class="ml-2">🎁</span> توسعه فروش تسهیلات: <span class="font-normal mr-auto">${formatNumberWithPersianCommas(loanData.sales_development_loan)}</span>
+                    </p>
+                    <p class="font-bold text-lg flex items-center">
+                        <span class="ml-2">➕</span> ارزش افزوده توسعه فروش تسهیلات: <span class="font-normal mr-auto">${formatNumberWithPersianCommas(loanData.value_added_sales_development_loan)}</span>
+                    </p>
+                    <p class="font-bold text-lg flex items-center">
+                        <span class="ml-2">🛡️</span> محاسبه تقریبی بیمه بدنه طی دوره اقساط: <span class="font-normal mr-auto">${formatNumberWithPersianCommas(loanData.approx_body_insurance_during_installment_period)}</span>
+                    </p>
+                    <p class="font-bold text-lg flex items-center">
+                        <span class="ml-2">📜</span> هزینه رهنی سند سبز: <span class="font-normal mr-auto">${formatNumberWithPersianCommas(loanData.green_document_mortgage_cost)}</span>
+                    </p>
+                    <p class="font-bold text-lg flex items-center">
+                        <span class="ml-2">💳</span> مبلغ هر قسط: <span class="font-normal mr-auto">${formatNumberWithPersianCommas(loanData.installment_amount)}</span>
+                    </p>
+                    <p class="font-bold text-lg flex items-center">
+                        <span class="ml-2">🤝</span> پیش پرداخت مشتری به نمایندگی/ نمایشگاه: <span class="font-normal mr-auto">${formatNumberWithPersianCommas(loanData.customer_down_payment_to_dealership)}</span>
+                    </p>
+                    <p class="font-bold text-lg flex items-center">
+                        <span class="ml-2">🏦</span> خالص تسهیلات واریزی به حساب نمایندگی / نمایشگاه: <span class="font-normal mr-auto">${formatNumberWithPersianCommas(loanData.net_loan_deposited_to_dealership)}</span>
+                    </p>
+                `;
+                resultsArea.classList.remove('hidden');
+            } else {
+                errorMessageDiv.textContent = `اطلاعاتی برای خودروی "${selectedCarName}" و مدت تسهیلات ${loanTermMonths/12} ساله یافت نشد. لطفاً مطمئن شوید که اطلاعات این خودرو و مدت تسهیلات در فایل 'loan_data.json' موجود است.`;
+                errorMessageDiv.classList.remove('hidden');
+            }
+        });
+
+        // Fetch data and initialize dropdowns when the page loads
+        fetchLoanData();
+    </script>
+</body>
+</html>
